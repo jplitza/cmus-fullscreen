@@ -1,0 +1,15 @@
+cmus fullscreen interface README
+
+general keys:
+  SPACE     open browser
+  F         toggle fullscreen
+  ESC or Q  quit
+
+browser keys:
+  RETURN, SPACE, RIGHT  select current item
+  BACKSPACE, LEFT       go one menu back or close browser on highest level
+  S                     close browser
+  (PAGE) UP / DOWN      select item
+
+The script relies upon the big fat music note icon to be available at
+  /usr/share/icons/Tango/scalable/mimetypes/audio-x-generic.svg
