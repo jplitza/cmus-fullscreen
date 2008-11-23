@@ -122,6 +122,7 @@ class Control:
         for key in ('artist', 'album', 'title'):
             if key not in metadata.keys():
                 return False
+        self._send('view sorted')
         self._send('/%s %s %s' % (metadata['artist'], metadata['album'], metadata['title']))
         self._send('win-activate')
 
