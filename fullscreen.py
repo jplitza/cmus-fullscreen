@@ -6,7 +6,17 @@ Fullscreen music title display
 This app provides a fullscreen interface to cmus, including library navigation.
 """
 
-import pygame, sys, os, cmus, dbus, shapes, Queue, thread, time, operator
+import pygame, sys, os, time, operator
+import cmus, shapes
+#try:
+#  import dbus
+#except ImportError:
+#  pass
+try:
+  import thread, Queue
+except ImportError:
+  # TODO: implement library reading without threads
+  pass
 from math import pi
 
 DEBUG = 0
@@ -149,7 +159,11 @@ def load_svg(filename, size):
   Loads the SVG graphic pointed at by filename rendered at the given size
   into a pygame surface
   """
-  import rsvg, cairo, array, cStringIO
+  try:
+    import rsvg, cairo, array, cStringIO
+    os.stat(filename)
+  except (ImportError, OSError):
+    return pygame.Surface((0,0))
   width, height = size
   csurface = cairo.ImageSurface(cairo.FORMAT_ARGB32, width, height)
   context = cairo.Context(csurface)
@@ -228,8 +242,12 @@ class Screen:
 
   def start_thread(self):
     if not hasattr(self, 'thread'):
-      self.queue = Queue.Queue()
-      self.thread = thread.start_new_thread(LibThread, (self.queue, ))
+      try:
+        self.queue = Queue.Queue()
+        self.thread = thread.start_new_thread(LibThread, (self.queue, ))
+      except NameError:
+        self.thread = True
+        self.queue = 0
 
   def quit(self):
     """
@@ -238,6 +256,7 @@ class Screen:
     pygame.display.quit()
     os.unlink(os.path.expanduser(os.path.join('~', '.cmus', 'inhibit-osd')))
     self.activate_screensaver()
+    # TODO: kill thread silently/cleanly
 
   def load_fonts(self):
     """
@@ -255,15 +274,18 @@ class Screen:
     Screen.deactivate_screensaver() -- deactivate a running screensaver
     """
     # TODO: support xscreensaver and maybe others (kscreensaver?)
-    self.session_bus = dbus.SessionBus()
-    self.scrsvr = self.session_bus.get_object(
-      'org.gnome.ScreenSaver',
-      '/org/gnome/ScreenSaver'
-    )
-    self.scrsvr_cookie = self.scrsvr.Inhibit(
-      'cmus-status',
-      'Showing played track info'
-    )
+    try:
+      self.session_bus = dbus.SessionBus()
+      self.scrsvr = self.session_bus.get_object(
+        'org.gnome.ScreenSaver',
+        '/org/gnome/ScreenSaver'
+      )
+      self.scrsvr_cookie = self.scrsvr.Inhibit(
+        'cmus-status',
+        'Showing played track info'
+      )
+    except NameError:
+      pass
     # TODO: doesn't belong here
     f = file(os.path.expanduser(os.path.join('~', '.cmus', 'inhibit-osd')), 'w')
     f.close()
@@ -276,7 +298,10 @@ class Screen:
     Re-activates a previously deactivated screensaver.
     """
     # TODO: support xscreensaver and maybe others (kscreensaver?)
-    self.scrsvr.UnInhibit(self.scrsvr_cookie)
+    try:
+      self.scrsvr.UnInhibit(self.scrsvr_cookie)
+    except (NameError, AttributeError):
+      pass
 
   def draw_background(self):
     """
@@ -295,15 +320,11 @@ class Screen:
 
     # TODO: Don't use static path/icon
     image = '/usr/share/icons/Tango/scalable/mimetypes/audio-x-generic.svg'
-    try:
-      os.stat(image)
-      self.shapes['musicimg'] = load_svg(image, [height/2]*2)
-      back.blit(
-        self.shapes['musicimg'],
-        (width / 10, (height - self.sh('musicimg')) / 2)
-      )
-    except OSError:
-      self.shapes['musicimg'] = pygame.Surface([height/2]*2)
+    self.shapes['musicimg'] = load_svg(image, [height/2]*2)
+    back.blit(
+      self.shapes['musicimg'],
+      (width / 10, (height - self.sh('musicimg')) / 2)
+    )
     return back
 
   def load_shapes(self):
@@ -570,19 +591,36 @@ class Screen:
   def loop_browser(self, first):
     width, height = self.size
     if hasattr(self, 'thread') and self.thread != False:
+      if isinstance(self.queue, int):
+        if first:
+          s = self.fonts[1]['font'].render(
+            'Browser unavailable.',
+            True,
+            self.colors[1]
+          )
+          self.browsurf.blit(s, (50, 50))
+          return True
+        elif self.queue < 10:
+          self.queue += 1
+          return True
+        else:
+          self.queue = 0
+          return False
       try:
         self.liblist = self.queue.get_nowait()
+      except Queue.Empty:
+        if first:
+          s = self.fonts[1]['font'].render(
+            'Loading browser...',
+            True,
+            self.colors[1]
+          )
+          self.browsurf.blit(s, (50, 50))
+        return True
+      else:
         self.thread = False
         del self.queue
         first = True
-      except Queue.Empty:
-        s = self.fonts[1]['font'].render(
-          'Loading browser...',
-          True,
-          self.colors[1]
-        )
-        self.browsurf.blit(s, (50, 50))
-        return True
 
     if not hasattr(self, 'control'):
       self.control = cmus.Control()
