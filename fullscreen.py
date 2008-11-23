@@ -22,17 +22,17 @@ def LibThread(q):
   does few error handling and modifies nice value.
   """
   os.nice(1)
-  time.sleep(0.000001)
+  time.sleep(0)
   library = cmus.Library()
   cache = cmus.Cache()
   liblist = {}
   # BUG: newly added tracks don't appear in the listing as they aren't recorded
-  #     neither in the cache nor in the library.pl
+  #      neither in the cache nor in the library.pl
   # TODO: speed up loading
   # TODO: report progress values, maybe even return partial results?
   for track in cache.itervalues():
-    # sleep for a tiny timeframe so other threads can jump in
-    time.sleep(0.000001)
+    # allow other thread to jump in
+    time.sleep(0)
 
     # file in cache but not in library?
     if not track['file'] in library:
@@ -168,8 +168,13 @@ class Screen:
   """
   fonts = []
   shapes = {}
-  # track title, track artist/album, volume/status, background, light gradient
-  colors = [(255, 255, 255), (200, 200, 200), (150, 150, 150), (0, 0, 0), (50, 50, 50)]
+  colors = [
+    (255, 255, 255), # track title
+    (200, 200, 200), # track artist/album
+    (150, 150, 150), # volume/status
+    (0, 0, 0),       # background
+    (50, 50, 50)     # light gradient end
+  ]
   mode = 'status'
   fullscreen = True
 
