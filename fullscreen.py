@@ -54,12 +54,12 @@ def LibThread(q):
     elif track.has_key('artist') and track['artist'] != '':
       artist = track['artist']
     else:
-      artist = 'Unknown artist'
+      artist = '[unknown]'
 
     if track.has_key('album') and track['album'] != '':
       album = track['album']
     else:
-      album = 'Unknown album'
+      album = '[unknown]'
 
     if track.has_key('title') and track['title'] != '':
       title = track['title']
