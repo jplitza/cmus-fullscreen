@@ -8,10 +8,10 @@ This app provides a fullscreen interface to cmus, including library navigation.
 
 import pygame, sys, os, time, operator
 import cmus, shapes
-#try:
-#  import dbus
-#except ImportError:
-#  pass
+try:
+  import dbus
+except ImportError:
+  pass
 try:
   import thread, Queue
 except ImportError:
@@ -409,7 +409,7 @@ class Screen:
       elif event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE \
         and self.mode != 'browser':
           self.mode = 'browser'
-          first = True
+          first = Trueë
       elif event.type == pygame.KEYDOWN and event.key == pygame.K_s \
         and self.mode != 'status':
           self.mode = 'status'
