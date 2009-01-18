@@ -186,7 +186,10 @@ class Cache:
                         value = 0
                 entry[key] = value
             self._cache_index[entry['file']] = entry
-            m.seek(offset+(entry['size'] + (3 if not self._64bit else 7)) & ~(3 if not self._64bit else 7))
+            try:
+              m.seek(offset+(entry['size'] + (3 if not self._64bit else 7)) & ~(3 if not self._64bit else 7))
+            except ValueError:
+              return False
 
     def __getitem__(self, file):
         if not self._cache_index:
