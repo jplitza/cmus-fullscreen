@@ -409,7 +409,7 @@ class Screen:
       elif event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE \
         and self.mode != 'browser':
           self.mode = 'browser'
-          first = Trueë
+          first = True
       elif event.type == pygame.KEYDOWN and event.key == pygame.K_s \
         and self.mode != 'status':
           self.mode = 'status'
