@@ -129,6 +129,79 @@ class Control:
     def raw(self, text):
         return self._send(text)
 
+# TODO: combine CacheIter and Cache
+class CacheIter:
+    _cache = False
+    _cache_index = False
+    def __init__(self):
+        self._open()
+
+    def _strtoint(self, str):
+        ret = 0
+        for i in xrange(len(str)):
+            ret += ord(str[i]) << (i*8)
+        return ret
+
+    def _getfield(self, fd, size = False):
+        start = i = fd.tell()
+        while fd[i] != '\0':
+            i += 1
+        buf = fd[start:i]
+        fd.seek(i+1)
+        return buf
+
+    def __iter__(self):
+        return self
+
+    def _open(self):
+        if not self._cache:
+            self._cache = open(os.path.expanduser(os.path.join('~', '.cmus', 'cache')))
+        self._cache.seek(0, 2)
+        self.endloc = self._cache.tell()
+        self._cache.seek(0)
+        self.m = mmap.mmap(self._cache.fileno(), 0, access=mmap.ACCESS_READ)
+        if self.m[0:4] != 'CTC\x01':
+            raise Exception('unexpected cache magic string: %s' % buf)
+        flags = self._strtoint(self.m[4:8])
+        if flags & 0x01:
+            self._64bit = True
+            self._bytelength = 7
+        else:
+            self._64bit = False
+            self._bytelength = 3
+        if flags & 0x02:
+            self._big_endian = True
+        else:
+            self._big_endian = False
+        self.m.seek(8)
+
+    def next(self):
+        if self.m.tell() >= self.endloc:
+            raise StopIteration
+
+        offset = self.m.tell()
+        s = struct.unpack('3l', self.m.read(struct.calcsize('3l')))
+        entry = {
+                'size': s[0],
+                'duration': s[1],
+                'mtime': s[2],
+                'file': self._getfield(self.m)
+        }
+        while self.m.tell() < offset+entry['size']:
+            key = self._getfield(self.m)
+            value = self._getfield(self.m)
+            if key in 'tracknumber':
+                try:
+                    value = int(value)
+                except ValueError:
+                    value = 0
+            entry[key] = value
+        try:
+            self.m.seek(offset + (entry['size'] + self._bytelength) & ~self._bytelength)
+        except ValueError:
+            self.m.seek(self.endloc)
+        return entry
+
 class Cache:
     _cache = False
     _cache_index = False

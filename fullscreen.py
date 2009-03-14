@@ -8,16 +8,14 @@ This app provides a fullscreen interface to cmus, including library navigation.
 
 import pygame, sys, os, time, operator
 import cmus, shapes
+from math import pi
+
 try:
   import dbus
-except ImportError:
-  pass
-try:
   import thread, Queue
 except ImportError:
   # TODO: implement library reading without threads
   pass
-from math import pi
 
 DEBUG = 0
 SCRIPT_START = time.time()
@@ -34,13 +32,13 @@ def LibThread(q):
   os.nice(1)
   time.sleep(0)
   library = cmus.Library()
-  cache = cmus.Cache()
+  cache = cmus.CacheIter()
   liblist = {}
   # BUG: newly added tracks don't appear in the listing as they aren't recorded
   #      neither in the cache nor in the library.pl
   # TODO: speed up loading
   # TODO: report progress values, maybe even return partial results?
-  for track in cache.itervalues():
+  for track in cache:
     # allow other thread to jump in
     time.sleep(0)
 
@@ -483,7 +481,7 @@ class Screen:
 
       if st['tag'].has_key('album'):
         lines.append({
-          'text': '%s' % st['tag']['album'],
+          'text': ('%s' % st['tag']['album']) if not st['tag'].has_key('tracknumber') or st['tag']['tracknumber'] == 0 else ('%s (#%d)' % (st['tag']['album'], st['tag']['tracknumber'])),
           'font': self.fonts[1],
           'color': self.colors[1]
         })
@@ -641,9 +639,15 @@ class Screen:
           if selected < len(curlist)-1:
             self.selected[self.current] += 1
             first = True
+          else:
+            self.selected[self.current] = 0
+            first = True
         elif event.key == pygame.K_UP:
           if selected > 0:
             self.selected[self.current] -= 1
+            first = True
+          else:
+            self.selected[self.current] = len(curlist)-1
             first = True
         elif event.key == pygame.K_PAGEDOWN:
           if selected < len(curlist)-pp:
@@ -726,7 +730,7 @@ def start():
   first = True
   checkpoint('startup', True)
   while 1:
-    step = 0.1 if m.mode == 'browser' else 0.25
+    step = 0.05
     loop_start = time.time()
     checkpoint('first')
     if not m.loop(first):
