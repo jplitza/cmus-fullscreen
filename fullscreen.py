@@ -31,39 +31,32 @@ def LibThread(q):
   """
   os.nice(1)
   time.sleep(0)
-  library = cmus.Library()
-  cache = cmus.CacheIter()
+  library = cmus.library()
+  cache = cmus.Cache()
   liblist = {}
   # BUG: newly added tracks don't appear in the listing as they aren't recorded
   #      neither in the cache nor in the library.pl
-  # TODO: speed up loading
   # TODO: report progress values, maybe even return partial results?
   for track in cache:
     # allow other thread to jump in
     time.sleep(0)
 
-    # file in cache but not in library?
-    if not track['file'] in library:
-      continue
+    try:
+        del library[library.index(track['file'])]
+    except ValueError:
+        # file is in cache but not in library
+        continue
 
     # use dummy values if no value given
-    if track.has_key('albumartist') and track['albumartist'] != '':
-      artist = track['albumartist']
-    elif track.has_key('artist') and track['artist'] != '':
-      artist = track['artist']
-    else:
-      artist = '[unknown]'
+    artist = track['albumartist'] if track.has_key('albumartist') and track['albumartist'] != '' \
+             else track['artist'] if track.has_key('artist') and track['artist'] != '' \
+             else '[unknown]'
 
-    if track.has_key('album') and track['album'] != '':
-      album = track['album']
-    else:
-      album = '[unknown]'
+    album = track['album'] if track.has_key('album') and track['album'] != '' \
+            else '[unknown]'
 
-    if track.has_key('title') and track['title'] != '':
-      title = track['title']
-    else:
-      # use filename without extension
-      title = os.path.basename(track['file']).rsplit('.', 1)[0]
+    title = track['title'] if track.has_key('title') and track['title'] != '' \
+            else os.path.basename(track['file']).rsplit('.', 1)[0]
 
     if not liblist.has_key(artist):
       liblist[artist] = {}
@@ -73,7 +66,7 @@ def LibThread(q):
 
   def sorter(x):
     ref = liblist[artist][album][x]
-    if ref.has_key('tracknumber') and ref['tracknumber'] != '':
+    if ref.has_key('tracknumber') and ref['tracknumber'] != 0:
       return ref['tracknumber']
     elif ref.has_key('title') and ref['title'] != '':
       return ref['title']
