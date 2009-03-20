@@ -145,7 +145,13 @@ class Cache:
 
     def _open(self):
         if not self._cache:
-            self._cache = open(os.path.expanduser(os.path.join('~', '.cmus', 'cache')))
+            try:
+                self._cache = open(os.path.expanduser(os.path.join('~', '.cmus', 'cache')))
+            except IOError:
+                def next():
+                    raise StopIteration
+                self.next = next
+                return False
         self._cache.seek(0, 2)
         self.endloc = self._cache.tell()
         self._cache.seek(0)

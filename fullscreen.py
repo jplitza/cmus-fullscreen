@@ -64,6 +64,9 @@ def LibThread(q):
       liblist[artist][album] = {}
     liblist[artist][album][title] = track
 
+  # TODO: get files not in cache manually
+  #       (hint: library contains their paths now)
+
   def sorter(x):
     ref = liblist[artist][album][x]
     if ref.has_key('tracknumber') and ref['tracknumber'] != 0:
