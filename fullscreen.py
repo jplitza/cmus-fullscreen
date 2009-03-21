@@ -6,13 +6,13 @@ Fullscreen music title display
 This app provides a fullscreen interface to cmus, including library navigation.
 """
 
-import pygame, sys, os, time, operator
+import pygame, sys, os, time, operator, socket
 import cmus, shapes
-from math import pi
 
 try:
   import dbus
   import thread, Queue
+  import pylirc
 except ImportError:
   # TODO: implement library reading without threads
   pass
@@ -40,6 +40,12 @@ def LibThread(q):
   for track in cache:
     # allow other thread to jump in
     time.sleep(0)
+    try:
+      q.get_nowait()
+      q.task_done()
+      return False
+    except Queue.Empty:
+      pass
 
     try:
         del library[library.index(track['file'])]
@@ -222,6 +228,7 @@ class Screen:
     self.load_fonts()
     self.load_shapes()
     self.deactivate_screensaver()
+    pylirc.init('cmus-fullscreen')
     pygame.display.set_caption('cmus fullscreen interface')
     # TODO: set window icon?
     self.screen = pygame.display.set_mode(self.rsize, \
@@ -231,7 +238,11 @@ class Screen:
     # TODO: only make browsurf as big as needed
     self.browsurf = Surface(self.size, pygame.SRCALPHA)
     self.surf = Surface(self.size, pygame.SRCALPHA)
-    self.st = cmus.Status()
+    try:
+      self.st = cmus.Status()
+    except:
+      # TODO: print this onscreen and retry
+      raise Exception('cmus not started')
     self.start_thread()
 
   def start_thread(self):
@@ -248,9 +259,11 @@ class Screen:
     Screen.quit() -- close all components
     """
     pygame.display.quit()
+    if self.thread:
+      self.queue.put('quit', False)
+      self.queue.join()
     os.unlink(os.path.expanduser(os.path.join('~', '.cmus', 'inhibit-osd')))
     self.activate_screensaver()
-    # TODO: kill thread silently/cleanly
 
   def load_fonts(self):
     """
@@ -395,6 +408,26 @@ class Screen:
       pygame.display.update(updates)
     checkpoint('update')
 
+  def start_browser(self):
+    self.mode = 'browser'
+    try:
+      s = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+      s.connect(os.path.expanduser(os.path.join('~', '.cmus', 'OSD')))
+      s.send('B')
+      s.close()
+    except:
+      pass
+
+  def quit_browser(self):
+    self.mode = 'status'
+    try:
+      s = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+      s.connect(os.path.expanduser(os.path.join('~', '.cmus', 'OSD')))
+      s.send('S')
+      s.close()
+    except:
+      pass
+
   def loop(self, first = False):
     for event in pygame.event.get():
       if event.type == pygame.KEYDOWN and event.key == pygame.K_f:
@@ -402,11 +435,11 @@ class Screen:
         first = True
       elif event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE \
         and self.mode != 'browser':
-          self.mode = 'browser'
+          self.start_browser()
           first = True
       elif event.type == pygame.KEYDOWN and event.key == pygame.K_s \
         and self.mode != 'status':
-          self.mode = 'status'
+          self.quit_browser()
           self.surf.fill((0, 0, 0, 0))
           first = True
       elif event.type == pygame.KEYDOWN \
@@ -416,6 +449,32 @@ class Screen:
           return False
       else:
         pygame.event.post(event)
+
+    list = pylirc.nextcode()
+    while list != None:
+      if self.mode == 'browser':
+        e = None
+        for code in list:
+          if code == 'up':
+            e = pygame.K_UP
+          elif code == 'down':
+            e = pygame.K_DOWN
+          elif code == 'page-up':
+            e = pygame.K_PAGEUP
+          elif code == 'page-down':
+            e = pygame.K_PAGEDOWN
+          elif code == 'select':
+            e = pygame.K_SPACE
+          elif code == 'back':
+            e = pygame.K_BACKSPACE
+          else:
+            continue
+          pygame.event.post(pygame.event.Event(pygame.KEYDOWN, {'key': e}))
+      else:
+        if 'select' in list:
+          self.start_browser()
+          first = True
+      list = pylirc.nextcode()
 
     checkpoint('events')
     self.loop_status(first)
@@ -427,6 +486,8 @@ class Screen:
         pygame.event.post(pygame.event.Event(pygame.KEYDOWN, dict(key=pygame.K_s)))
       else:
         pygame.event.clear()
+    else:
+      pygame.event.clear()
 
     # update screen
     self.update(first)
@@ -523,13 +584,34 @@ class Screen:
       self.shapes['vols'] = vols
       checkpoint('volume')
 
-    if old['position'] != st['position'] or first:
+    if st.has_key('position') and (not old.has_key('position') or old['position'] != st['position'] or first):
       pos = [(width - self.sw('bar')) / 2, height * 3 / 4]
       self.surf.blit(self.shapes['bar'], pos)
       self.surf.blit(self.shapes['dot'], (
           pos[0] + float(st['position']) / st['duration'] * (self.sw('bar') - self.sw('dot')), pos[1]
         ), None, False)
-      del pos
+      s = self.fonts[2]['font'].render(
+        '%d:%02d' % (st['duration'] / 60, st['duration'] % 60),
+        True,
+        self.colors[1]
+      )
+      self.surf.update((
+        pos[0],
+        pos[1] + self.shapes['bar'].get_height() + 3,
+        self.shapes['bar'].get_width(),
+        s.get_height()
+      ))
+      self.surf.blit(s, (
+        pos[0] + self.shapes['bar'].get_width() - s.get_width(),
+        pos[1] + self.shapes['bar'].get_height() + 3)
+      )
+      s = self.fonts[2]['font'].render(
+        '%d:%02d' % (st['position'] / 60, st['position'] % 60),
+        True,
+        self.colors[1]
+      )
+      self.surf.blit(s, (pos[0], pos[1] + self.shapes['bar'].get_height()+3))
+      del pos, s
 
       checkpoint('position')
 
