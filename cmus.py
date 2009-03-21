@@ -15,8 +15,12 @@ def Socket():
     # TODO: read socket path from config and use IP if desired
     # TODO: reopen if connection was closed
     if not _sock:
-        _sock = socket.socket(socket.AF_UNIX)
-        _sock.connect(os.path.expanduser(os.path.join('~', '.cmus', 'socket')))
+        try:
+            _sock = socket.socket(socket.AF_UNIX)
+            _sock.connect(os.path.expanduser(os.path.join('~', '.cmus', 'socket')))
+        except:
+            del _sock
+            raise
     return _sock
 
 class Status(dict):
