@@ -592,7 +592,15 @@ class Screen:
       self.shapes['vols'] = vols
       checkpoint('volume')
 
-    if st.has_key('position') and (not old.has_key('position') or old['position'] != st['position'] or first):
+    if     st.has_key('position') \
+       and st.has_key('duration') \
+       and ( \
+            not old.has_key('position') \
+         or not old.has_key('duration') \
+         or old['position'] != st['position'] \
+         or old['duration'] != st['duration'] \
+         or first \
+        ):
       pos = [(width - self.sw('bar')) / 2, height * 3 / 4]
       self.surf.blit(self.shapes['bar'], pos)
       self.surf.blit(self.shapes['dot'], (
@@ -692,6 +700,7 @@ class Screen:
           return False
       try:
         self.liblist = self.queue.get_nowait()
+        self.queue.task_done()
       except Queue.Empty:
         if first:
           s = self.fonts[1]['font'].render(
