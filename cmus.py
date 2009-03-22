@@ -121,9 +121,24 @@ class Control:
         for key in ('artist', 'album', 'title'):
             if key not in metadata.keys():
                 return False
+        st = Status()
         self._send('view sorted')
         self._send('/%s %s %s' % (metadata['artist'], metadata['album'], metadata['title']))
+        self.stop()
         self._send('win-activate')
+        i = 0
+        st.update()
+        while st['tag']['artist'] != metadata['artist'] \
+           or st['tag']['album']  != metadata['album'] \
+           or st['tag']['title']  != metadata['title']:
+          self._send('search-next')
+          self._send('win-activate')
+          i += 1
+          if i == 100:
+            # Protection from endless loop (TODO: better implementation)
+            self.stop()
+            break
+          st.update()
 
     def raw(self, text):
         return self._send(text)
