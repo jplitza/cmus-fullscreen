@@ -228,7 +228,8 @@ class Screen:
     self.load_fonts()
     self.load_shapes()
     self.deactivate_screensaver()
-    pylirc.init('cmus-fullscreen')
+    if not hasattr(self, 'lircsock'):
+      self.lircsock = pylirc.init('cmus-fullscreen')
     pygame.display.set_caption('cmus fullscreen interface')
     # TODO: set window icon?
     self.screen = pygame.display.set_mode(self.rsize, \
@@ -244,6 +245,7 @@ class Screen:
       # TODO: print this onscreen and retry
       raise Exception('cmus not started')
     self.start_thread()
+    self.first = True
 
   def start_thread(self):
     if not hasattr(self, 'thread'):
@@ -262,6 +264,8 @@ class Screen:
     if self.thread:
       self.queue.put('quit', False)
       self.queue.join()
+    if hasattr(self, 'lircsock'):
+      pylirc.exit()
     os.unlink(os.path.expanduser(os.path.join('~', '.cmus', 'inhibit-osd')))
     self.activate_screensaver()
 
@@ -420,6 +424,7 @@ class Screen:
 
   def quit_browser(self):
     self.mode = 'status'
+    self.surf.fill((0, 0, 0, 0))
     try:
       s = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
       s.connect(os.path.expanduser(os.path.join('~', '.cmus', 'OSD')))
@@ -428,7 +433,9 @@ class Screen:
     except:
       pass
 
-  def loop(self, first = False):
+  def loop(self):
+    first = self.first
+    self.first = False
     for event in pygame.event.get():
       if event.type == pygame.KEYDOWN and event.key == pygame.K_f:
         self.__init__(not self.fullscreen)
@@ -440,7 +447,6 @@ class Screen:
       elif event.type == pygame.KEYDOWN and event.key == pygame.K_s \
         and self.mode != 'status':
           self.quit_browser()
-          self.surf.fill((0, 0, 0, 0))
           first = True
       elif event.type == pygame.KEYDOWN \
         and (event.key == pygame.K_ESCAPE or event.key == pygame.K_q) \
@@ -467,11 +473,14 @@ class Screen:
             e = pygame.K_SPACE
           elif code == 'back':
             e = pygame.K_BACKSPACE
+          elif code == 'browser':
+            self.quit_browser()
+            self.first = True
           else:
             continue
           pygame.event.post(pygame.event.Event(pygame.KEYDOWN, {'key': e}))
       else:
-        if 'select' in list:
+        if 'browser' in list:
           self.start_browser()
           first = True
       list = pylirc.nextcode()
@@ -481,9 +490,8 @@ class Screen:
     if self.mode == 'browser':
       if not self.loop_browser(first):
         pygame.event.clear()
-        # close browser by simulating s keypress
-        # TODO: do this nicer
-        pygame.event.post(pygame.event.Event(pygame.KEYDOWN, dict(key=pygame.K_s)))
+        self.quit_browser()
+        self.first = True
       else:
         pygame.event.clear()
     else:
@@ -805,16 +813,13 @@ class Screen:
 
 def start():
   m = Screen()
-  first = True
   checkpoint('startup', True)
   while 1:
     step = 0.05
     loop_start = time.time()
     checkpoint('first')
-    if not m.loop(first):
+    if not m.loop():
       break
-    if first:
-      first = False
     timediff = time.time()-loop_start
     if DEBUG:
       print 'checkpoint            loop: %f' % timediff
