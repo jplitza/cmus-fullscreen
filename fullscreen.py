@@ -261,12 +261,12 @@ class Screen:
     Screen.quit() -- close all components
     """
     pygame.display.quit()
+    os.unlink(os.path.expanduser(os.path.join('~', '.cmus', 'inhibit-osd')))
+    if hasattr(self, 'lircsock'):
+      pylirc.exit()
     if self.thread:
       self.queue.put('quit', False)
       self.queue.join()
-    if hasattr(self, 'lircsock'):
-      pylirc.exit()
-    os.unlink(os.path.expanduser(os.path.join('~', '.cmus', 'inhibit-osd')))
     self.activate_screensaver()
 
   def load_fonts(self):
@@ -295,7 +295,7 @@ class Screen:
         'cmus-status',
         'Showing played track info'
       )
-    except NameError:
+    except (NameError, dbus.exceptions.DBusException):
       pass
     # TODO: doesn't belong here
     f = file(os.path.expanduser(os.path.join('~', '.cmus', 'inhibit-osd')), 'w')
@@ -311,7 +311,7 @@ class Screen:
     # TODO: support xscreensaver and maybe others (kscreensaver?)
     try:
       self.scrsvr.UnInhibit(self.scrsvr_cookie)
-    except (NameError, AttributeError):
+    except (NameError, AttributeError, dbus.exceptions.DBusException):
       pass
 
   def draw_background(self):
