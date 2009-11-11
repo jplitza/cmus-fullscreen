@@ -228,7 +228,7 @@ class Screen:
     self.load_fonts()
     self.load_shapes()
     self.deactivate_screensaver()
-    if not hasattr(self, 'lircsock'):
+    if not hasattr(self, 'lircsock') and 'pylirc' in sys.modules:
       self.lircsock = pylirc.init('cmus-fullscreen')
     pygame.display.set_caption('cmus fullscreen interface')
     # TODO: set window icon?
@@ -264,7 +264,7 @@ class Screen:
     os.unlink(os.path.expanduser(os.path.join('~', '.cmus', 'inhibit-osd')))
     if hasattr(self, 'lircsock'):
       pylirc.exit()
-    if self.thread:
+    if self.thread and self.queue:
       self.queue.put('quit', False)
       self.queue.join()
     self.activate_screensaver()
@@ -286,16 +286,19 @@ class Screen:
     """
     # TODO: support xscreensaver and maybe others (kscreensaver?)
     try:
-      self.session_bus = dbus.SessionBus()
-      self.scrsvr = self.session_bus.get_object(
-        'org.gnome.ScreenSaver',
-        '/org/gnome/ScreenSaver'
-      )
-      self.scrsvr_cookie = self.scrsvr.Inhibit(
-        'cmus-status',
-        'Showing played track info'
-      )
-    except (NameError, dbus.exceptions.DBusException):
+      try:
+        self.session_bus = dbus.SessionBus()
+        self.scrsvr = self.session_bus.get_object(
+          'org.gnome.ScreenSaver',
+          '/org/gnome/ScreenSaver'
+        )
+        self.scrsvr_cookie = self.scrsvr.Inhibit(
+          'cmus-status',
+          'Showing played track info'
+        )
+      except dbus.exceptions.DBusException:
+        pass
+    except NameError:
       pass
     # TODO: doesn't belong here
     f = file(os.path.expanduser(os.path.join('~', '.cmus', 'inhibit-osd')), 'w')
@@ -310,8 +313,11 @@ class Screen:
     """
     # TODO: support xscreensaver and maybe others (kscreensaver?)
     try:
-      self.scrsvr.UnInhibit(self.scrsvr_cookie)
-    except (NameError, AttributeError, dbus.exceptions.DBusException):
+      try:
+        self.scrsvr.UnInhibit(self.scrsvr_cookie)
+      except dbus.exceptions.DBusException:
+        pass
+    except (NameError, AttributeError):
       pass
 
   def draw_background(self):
@@ -456,34 +462,35 @@ class Screen:
       else:
         pygame.event.post(event)
 
-    list = pylirc.nextcode()
-    while list != None:
-      if self.mode == 'browser':
-        e = None
-        for code in list:
-          if code == 'up':
-            e = pygame.K_UP
-          elif code == 'down':
-            e = pygame.K_DOWN
-          elif code == 'page-up':
-            e = pygame.K_PAGEUP
-          elif code == 'page-down':
-            e = pygame.K_PAGEDOWN
-          elif code == 'select':
-            e = pygame.K_SPACE
-          elif code == 'back':
-            e = pygame.K_BACKSPACE
-          elif code == 'browser':
-            self.quit_browser()
-            self.first = True
-          else:
-            continue
-          pygame.event.post(pygame.event.Event(pygame.KEYDOWN, {'key': e}))
-      else:
-        if 'browser' in list:
-          self.start_browser()
-          first = True
+    if 'pylirc' in sys.modules:
       list = pylirc.nextcode()
+      while list != None:
+        if self.mode == 'browser':
+          e = None
+          for code in list:
+            if code == 'up':
+              e = pygame.K_UP
+            elif code == 'down':
+              e = pygame.K_DOWN
+            elif code == 'page-up':
+              e = pygame.K_PAGEUP
+            elif code == 'page-down':
+              e = pygame.K_PAGEDOWN
+            elif code == 'select':
+              e = pygame.K_SPACE
+            elif code == 'back':
+              e = pygame.K_BACKSPACE
+            elif code == 'browser':
+              self.quit_browser()
+              self.first = True
+            else:
+              continue
+            pygame.event.post(pygame.event.Event(pygame.KEYDOWN, {'key': e}))
+        else:
+          if 'browser' in list:
+            self.start_browser()
+            first = True
+        list = pylirc.nextcode()
 
     checkpoint('events')
     self.loop_status(first)
